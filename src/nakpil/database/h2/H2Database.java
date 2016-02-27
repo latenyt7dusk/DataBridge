@@ -14,6 +14,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -51,7 +52,7 @@ public class H2Database extends DBEngine{
         this.tableData = null;
     }
     
-    public List getTable(String schema,String table,List<String> cols){
+    public List getTable(String schema,String table,List<String> cols) throws SQLException{
         try{
             if(CONNECTION == null){
                 Class.forName(DRIVER);
@@ -83,8 +84,15 @@ public class H2Database extends DBEngine{
         }catch(Exception er){
             return null;
         }finally{
-            
-            System.gc();
+            if(CONNECTION != null){
+                RESULT.close();
+                PRESTATEMENT.close();
+                CONNECTION.close();
+                RESULT = null;
+                PRESTATEMENT = null;
+                CONNECTION = null;
+                System.gc();
+            }
         }
     }
     
