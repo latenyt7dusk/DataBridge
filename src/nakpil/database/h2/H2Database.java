@@ -10,8 +10,12 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import nakpil.database.DBEngine;
@@ -22,23 +26,67 @@ import nakpil.database.DBEngine;
  */
 public class H2Database extends DBEngine{
     
+    public static final String DRIVER = "org.h2.Driver";
+    private static String SCRIPT;
+    
     private H2Settings dbSettings;
     private Connection CONNECTION;
     private PreparedStatement PRESTATEMENT;
     private ResultSet RESULT;
+    private int ROW;
+    private ResultSetMetaData METADATA;
     private InputStream iStream;
     private OutputStream oStream;
     private FileOutputStream foStream;
     private FileInputStream fiStream;
     
-    private List<Map<String,String>> tableData;
+    private List<Map<String,Object>> tableData;
     
     
     public H2Database(H2Settings h2s){
         this.dbSettings = h2s;        
     }
     
+    public void flush(){
+        this.tableData = null;
+    }
     
+    public List getTable(String schema,String table,List<String> cols){
+        try{
+            if(CONNECTION == null){
+                Class.forName(DRIVER);
+                this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
+                SCRIPT = "SELECT ";
+                if(cols != null){
+                    SCRIPT = SCRIPT.concat(cols.get(0));
+                    for(int i = 1;i < cols.size();i++){
+                        SCRIPT = SCRIPT.concat(","+cols.get(i));
+                    }
+                    SCRIPT = SCRIPT.concat(" FROM "+((schema.isEmpty())? table:schema+"."+table));
+                }else{
+                    SCRIPT = SCRIPT.concat("* FROM "+((schema.isEmpty())? table:schema+"."+table));
+                }
+                this.PRESTATEMENT = CONNECTION.prepareStatement(SCRIPT);
+                this.RESULT = PRESTATEMENT.executeQuery();
+                this.tableData = new ArrayList();
+                this.METADATA = RESULT.getMetaData();
+                this.ROW = METADATA.getColumnCount();
+                while(RESULT.next()){
+                    Map<String,Object> cData = new HashMap();
+                    for (int i = 1; i <= ROW; i++) {
+                        cData.put(METADATA.getColumnName(i), RESULT.getObject(i));
+                    }
+                    this.tableData.add(cData);
+                }
+            }
+            return null;
+        }catch(Exception er){
+            return null;
+        }finally{
+            
+            System.gc();
+        }
+    }
     
     
 }
