@@ -32,7 +32,7 @@ public class H2Database extends DBEngine {
     public static final String DRIVER = "org.h2.Driver";
     private static String SCRIPT;
 
-    private H2Settings dbSettings;
+    private final H2Settings dbSettings;
     private Connection CONNECTION;
     private PreparedStatement PRESTATEMENT;
     private ResultSet RESULT;
@@ -61,7 +61,7 @@ public class H2Database extends DBEngine {
                 return true;
             }
             return false;
-        } catch (Exception er) {
+        } catch (ClassNotFoundException | SQLException er) {
             Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
             return false;
         } finally {
@@ -72,8 +72,145 @@ public class H2Database extends DBEngine {
             }
         }
     }
+    
+    public boolean hasDuplicates(String schema,String table,String val,String colName) throws SQLException{
+        try{
+            if (CONNECTION == null) {
+                Class.forName(DRIVER);
+                this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
+                this.PRESTATEMENT = CONNECTION.prepareStatement("SELECT "+colName+" FROM "+((schema.isEmpty()) ? table : schema + "." + table)+" WHERE "+colName+"='"+val+"'");
+                this.RESULT = PRESTATEMENT.executeQuery();
+                while (RESULT.next()) {
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        }catch(ClassNotFoundException | SQLException er){
+            Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
+            return true;
+        } finally {
+            if (CONNECTION != null) {
+                RESULT.close();
+                PRESTATEMENT.close();
+                CONNECTION.close();
+                RESULT = null;
+                PRESTATEMENT = null;
+                CONNECTION = null;
+                System.gc();
+            }
+        }
+    }
+    
+    public boolean run(final String script) throws SQLException{
+        try{
+            if (CONNECTION == null) {
+                Class.forName(DRIVER);
+                this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
+                this.PRESTATEMENT = CONNECTION.prepareStatement(script);
+                this.PRESTATEMENT.executeQuery();
+                return true;
+            }
+            return false;
+        }catch(ClassNotFoundException | SQLException er){
+            Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
+            return false;
+        } finally {
+            if (CONNECTION != null) {
+                PRESTATEMENT.close();
+                CONNECTION.close();
+                PRESTATEMENT = null;
+                CONNECTION = null;
+                System.gc();
+            }
+        }
+    }
+    
+    public List<Map<String, Object>> parse(final String script) throws SQLException{
+        try{
+            if (CONNECTION == null) {
+                Class.forName(DRIVER);
+                this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
+                this.PRESTATEMENT = CONNECTION.prepareStatement(script);
+                this.RESULT = PRESTATEMENT.executeQuery();
+                this.tableData = new ArrayList();
+                this.METADATA = RESULT.getMetaData();
+                this.ROW = METADATA.getColumnCount();
+                while (RESULT.next()) {
+                    Map<String, Object> cData = new HashMap();
+                    for (int i = 1; i <= ROW; i++) {
+                        cData.put(METADATA.getColumnName(i), RESULT.getObject(i));
+                    }
+                    this.tableData.add(cData);
+                }
+                return tableData;
+            }
+            return null;
+        }catch(ClassNotFoundException | SQLException er){
+            Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
+            return null;
+        } finally {
+            if (CONNECTION != null) {
+                RESULT.close();
+                PRESTATEMENT.close();
+                CONNECTION.close();
+                RESULT = null;
+                PRESTATEMENT = null;
+                CONNECTION = null;
+                System.gc();
+            }
+        }
+    }
+    
+    public List<Map<String, Object>> searchTable(String schema,String table,String colName,String likeVal,List<String> cols,boolean first) throws SQLException{
+        try{
+            if (CONNECTION == null) {
+                Class.forName(DRIVER);
+                this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
+                SCRIPT = "SELECT ";
+                if (cols != null) {
+                    SCRIPT = SCRIPT.concat(cols.get(0));
+                    for (int i = 1; i < cols.size(); i++) {
+                        SCRIPT = SCRIPT.concat("," + cols.get(i));
+                    }
+                    SCRIPT = SCRIPT.concat(" FROM " + ((schema.isEmpty()) ? table : schema + "." + table));
+                } else {
+                    SCRIPT = SCRIPT.concat("* FROM " + ((schema.isEmpty()) ? table : schema + "." + table));
+                }
+                SCRIPT = SCRIPT.concat(" WHERE "+colName+" LIKE "+((first)?"'":"'%")+likeVal+"%'");
+                this.PRESTATEMENT = CONNECTION.prepareStatement(SCRIPT);
+                this.RESULT = PRESTATEMENT.executeQuery();
+                this.tableData = new ArrayList();
+                this.METADATA = RESULT.getMetaData();
+                this.ROW = METADATA.getColumnCount();
+                while (RESULT.next()) {
+                    Map<String, Object> cData = new HashMap();
+                    for (int i = 1; i <= ROW; i++) {
+                        cData.put(METADATA.getColumnName(i), RESULT.getObject(i));
+                    }
+                    this.tableData.add(cData);
+                }
+                return tableData;
+            }
+            return null;
+        }catch(ClassNotFoundException | SQLException er){
+            Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
+            return null;
+        } finally {
+            if (CONNECTION != null) {
+                RESULT.close();
+                PRESTATEMENT.close();
+                CONNECTION.close();
+                RESULT = null;
+                PRESTATEMENT = null;
+                CONNECTION = null;
+                System.gc();
+            }
+        }
+        
+    }
 
-    public List getTable(String schema, String table, List<String> cols) throws SQLException {
+    public List<Map<String, Object>> getTable(String schema, String table, List<String> cols) throws SQLException {
         try {
             if (CONNECTION == null) {
                 Class.forName(DRIVER);
@@ -100,9 +237,10 @@ public class H2Database extends DBEngine {
                     }
                     this.tableData.add(cData);
                 }
+                return tableData;
             }
             return null;
-        } catch (Exception er) {
+        } catch (ClassNotFoundException | SQLException er) {
             Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
             return null;
         } finally {
