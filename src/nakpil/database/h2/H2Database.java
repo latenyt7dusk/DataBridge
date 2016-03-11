@@ -5,7 +5,9 @@
  */
 package nakpil.database.h2;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -49,7 +51,7 @@ public class H2Database extends DBEngine {
         this.dbSettings = h2s;
     }
 
-    public void flush() {
+    public void clean() {
         this.tableData = null;
     }
 
@@ -58,7 +60,7 @@ public class H2Database extends DBEngine {
             if (CONNECTION == null) {
                 Class.forName(DRIVER);
                 this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
-                return true;
+                return CONNECTION.isValid(1000);
             }
             return false;
         } catch (ClassNotFoundException | SQLException er) {
@@ -73,7 +75,7 @@ public class H2Database extends DBEngine {
         }
     }
     
-    public boolean hasDuplicates(String schema,String table,String val,String colName) throws SQLException{
+    public boolean hasDuplicates(final String schema,final String table,final String val,final String colName) throws SQLException{
         try{
             if (CONNECTION == null) {
                 Class.forName(DRIVER);
@@ -108,8 +110,8 @@ public class H2Database extends DBEngine {
                 Class.forName(DRIVER);
                 this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
                 this.PRESTATEMENT = CONNECTION.prepareStatement(script);
-                this.PRESTATEMENT.executeQuery();
-                return true;
+                
+                return PRESTATEMENT.execute();
             }
             return false;
         }catch(ClassNotFoundException | SQLException er){
@@ -162,7 +164,7 @@ public class H2Database extends DBEngine {
         }
     }
     
-    public List<Map<String, Object>> searchTable(String schema,String table,String colName,String likeVal,List<String> cols,boolean first) throws SQLException{
+    public List<Map<String, Object>> searchTable(final String schema,final String table,final String colName,final String likeVal,final List<String> cols,final boolean first) throws SQLException{
         try{
             if (CONNECTION == null) {
                 Class.forName(DRIVER);
@@ -210,7 +212,7 @@ public class H2Database extends DBEngine {
         
     }
 
-    public List<Map<String, Object>> getTable(String schema, String table, List<String> cols) throws SQLException {
+    public List<Map<String, Object>> getTable(final String schema,final String table,final List<String> cols) throws SQLException {
         try {
             if (CONNECTION == null) {
                 Class.forName(DRIVER);
@@ -256,4 +258,34 @@ public class H2Database extends DBEngine {
         }
     }
 
+    public boolean uploadImage(final String schema,final String table,final File img,final String id,final String name) throws SQLException{
+        try {
+            if(CONNECTION == null){
+                Class.forName(DRIVER);
+                this.CONNECTION = DriverManager.getConnection(this.getSource(), this.getUsername(), this.getPassword());
+                SCRIPT = "INSERT INTO "+((schema.isEmpty()) ? table : schema + "." + table)+" VALUES(?,?,?)";
+                this.PRESTATEMENT = CONNECTION.prepareStatement(SCRIPT);
+                this.iStream = new FileInputStream(img);
+                PRESTATEMENT.setString(1, id);
+                PRESTATEMENT.setString(2, name);
+                PRESTATEMENT.setBinaryStream(3, iStream, (int) img.length());
+                                
+                return PRESTATEMENT.execute();
+            }
+            return false;
+        } catch (ClassNotFoundException | SQLException | FileNotFoundException er) {
+            Logger.getLogger(H2Database.class.getName()).log(Level.SEVERE, null, er);
+            return false;
+        } finally {
+            if (CONNECTION != null) {
+                PRESTATEMENT.close();
+                CONNECTION.close();
+                PRESTATEMENT = null;
+                CONNECTION = null;
+                System.gc();
+            }
+        }
+    }
+    
+    
 }
